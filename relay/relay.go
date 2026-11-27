@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,7 +63,7 @@ func (r Refusal) Error() string { return "the gateway refused this relay: " + r.
 // Relay is one running relay.
 type Relay struct {
 	cfg   Config
-	allow []rule
+	allow protocol.AllowList
 	key   ed25519.PrivateKey
 
 	mu   sync.Mutex
@@ -84,7 +83,7 @@ func New(cfg Config) (*Relay, error) {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}}
 	}
-	rules, err := parseAllow(cfg.Allow)
+	rules, err := protocol.ParseAllow(cfg.Allow)
 	if err != nil {
 		return nil, err
 	}
@@ -315,72 +314,14 @@ func pipe(a, b net.Conn) (aToB, bToA int64) {
 	return
 }
 
-// rule is one allow list entry.
-type rule struct {
-	host   string     // a name (lower case), or ""
-	suffix string     // *.suffix, or ""
-	nw     *net.IPNet // a network, or nil
-	port   int        // 0: any
-}
-
-func parseAllow(entries []string) ([]rule, error) {
-	var out []rule
-	for _, e := range entries {
-		e = strings.TrimSpace(e)
-		if e == "" {
-			continue
-		}
-		i := strings.LastIndex(e, ":")
-		if i <= 0 || i == len(e)-1 {
-			return nil, fmt.Errorf("allow %q: write host:port, *.suffix:port or CIDR:port (a port of * is any)", e)
-		}
-		host, portText := strings.Trim(e[:i], "[]"), e[i+1:]
-		var rl rule
-		if portText != "*" {
-			p, err := strconv.Atoi(portText)
-			if err != nil || p < 1 || p > 65535 {
-				return nil, fmt.Errorf("allow %q: its port is 1-65535 or *", e)
-			}
-			rl.port = p
-		}
-		switch {
-		case strings.HasPrefix(host, "*."):
-			rl.suffix = strings.ToLower(host[1:])
-		case strings.Contains(host, "/"):
-			_, nw, err := net.ParseCIDR(host)
-			if err != nil {
-				return nil, fmt.Errorf("allow %q: %v", e, err)
-			}
-			rl.nw = nw
-		case net.ParseIP(host) != nil:
-			ip := net.ParseIP(host)
-			bits := 32
-			if ip.To4() == nil {
-				bits = 128
-			}
-			rl.nw = &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}
-		default:
-			rl.host = strings.ToLower(host)
-		}
-		out = append(out, rl)
-	}
-	return out, nil
-}
-
 // allowed says where to dial for host:port, if the allow list names it. A name is allowed by a name rule and
 // dialled by name; an address (or a name's addresses) by a network rule, and dialled at the address it allowed.
 func (r *Relay) allowed(host string, port int) (string, bool) {
 	if port < 1 || port > 65535 || host == "" {
 		return "", false
 	}
-	name := strings.ToLower(strings.TrimSuffix(host, "."))
-	for _, rl := range r.allow {
-		if rl.port != 0 && rl.port != port {
-			continue
-		}
-		if rl.host != "" && rl.host == name || rl.suffix != "" && strings.HasSuffix(name, rl.suffix) {
-			return net.JoinHostPort(host, strconv.Itoa(port)), true
-		}
+	if r.allow.Names(host, port) {
+		return net.JoinHostPort(host, strconv.Itoa(port)), true
 	}
 	var ips []net.IP
 	if ip := net.ParseIP(host); ip != nil {
@@ -389,10 +330,8 @@ func (r *Relay) allowed(host string, port int) (string, bool) {
 		ips = addrs
 	}
 	for _, ip := range ips {
-		for _, rl := range r.allow {
-			if rl.nw != nil && (rl.port == 0 || rl.port == port) && rl.nw.Contains(ip) {
-				return net.JoinHostPort(ip.String(), strconv.Itoa(port)), true
-			}
+		if r.allow.Holds(ip, port) {
+			return net.JoinHostPort(ip.String(), strconv.Itoa(port)), true
 		}
 	}
 	return "", false

@@ -216,7 +216,7 @@ func TestWithNeitherACertificateNorATokenItWontStart(t *testing.T) {
 func TestTheAllowList(t *testing.T) {
 	r := &Relay{}
 	var err error
-	r.allow, err = parseAllow([]string{"erp.internal:8080", "*.corp.example:443", "10.0.4.0/24:5432", "192.168.1.9:*"})
+	r.allow, err = protocol.ParseAllow([]string{"erp.internal:8080", "*.corp.example:443", "10.0.4.0/24:5432", "192.168.1.9:*"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,8 +241,22 @@ func TestTheAllowList(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"erp.internal", "erp.internal:0", "10.0.0.0/33:80", ":80"} {
-		if _, err := parseAllow([]string{bad}); err == nil {
+		if _, err := protocol.ParseAllow([]string{bad}); err == nil {
 			t.Errorf("%q: no error", bad)
+		}
+	}
+}
+
+func TestWhatAListCoversFromOutside(t *testing.T) {
+	l, _ := protocol.ParseAllow([]string{"erp.internal:8080", "10.0.4.0/24:5432"})
+	for _, c := range []struct {
+		host string
+		port int
+		want bool
+	}{{"erp.internal", 8080, true}, {"erp.internal", 9090, false}, {"10.0.4.7", 5432, true}, {"10.0.5.7", 5432, false},
+		{"db.internal", 5432, true /* a name a network rule resolves: the relay decides */}, {"db.internal", 5433, false}} {
+		if got := l.Covers(c.host, c.port); got != c.want {
+			t.Errorf("%s:%d → %v", c.host, c.port, got)
 		}
 	}
 }
