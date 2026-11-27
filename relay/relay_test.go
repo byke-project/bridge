@@ -21,7 +21,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/hashicorp/yamux"
 
-	"gitlab.com/byke-project/com.byke.bridge/protocol"
+	"github.com/byke-project/bridge/protocol"
 )
 
 // fakeGateway is the gateway's side of the protocol, enough to test a relay: it enrolls one token, welcomes the

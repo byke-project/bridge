@@ -29,7 +29,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/hashicorp/yamux"
 
-	"gitlab.com/byke-project/com.byke.bridge/protocol"
+	"github.com/byke-project/bridge/protocol"
 )
 
 // Config is how a relay runs.

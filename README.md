@@ -14,7 +14,7 @@ docker run -d --name byke-bridge --restart unless-stopped \
   -v byke-bridge:/var/lib/byke-bridge \
   -e BYKE_BRIDGE_TOKEN=bbe_… \
   -e BYKE_BRIDGE_ALLOW=erp.internal:8080,10.0.4.0/24:5432 \
-  registry.gitlab.com/byke-project/com.byke.bridge:latest
+  ghcr.io/byke-project/bridge:latest
 ```
 
 The token is used once. After that, the relay keeps its own key and certificate in the volume and needs no token.
@@ -70,3 +70,5 @@ go test -race ./...
 ```
 
 `protocol/` is the whole wire protocol between the relay and byke's gateway.
+
+The image is built for linux/amd64 and linux/arm64. Released under the MIT license (LICENSE).

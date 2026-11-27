@@ -1,4 +1,4 @@
-module gitlab.com/byke-project/com.byke.bridge
+module github.com/byke-project/bridge
 
 go 1.26.0
 

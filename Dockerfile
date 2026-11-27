@@ -1,11 +1,13 @@
 # byke bridge: the relay a customer runs in their own network (README.md).
-FROM golang:1.26-alpine AS build
+# Built for the target platform from the build machine's (Go cross-compiles: no emulation).
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /byke-bridge ./cmd/byke-bridge
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /byke-bridge ./cmd/byke-bridge
 RUN mkdir -p /state
 
 FROM gcr.io/distroless/static-debian12:nonroot

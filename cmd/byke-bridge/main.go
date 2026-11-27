@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"gitlab.com/byke-project/com.byke.bridge/relay"
+	"github.com/byke-project/bridge/relay"
 )
 
 var version = "dev"
